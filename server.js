@@ -84,6 +84,9 @@ async function sendNotification(phone, message) {
 
 
 // --- Routes ---
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/public/index.html');
+});
 
 // 1. Create Transaction
 app.post('/create-transaction', async (req, res) => {
