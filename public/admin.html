@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YT Premium Manager - Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f0f0f;
+            --surface-color: #282828;
+            --text-primary: #ffffff;
+            --text-secondary: #aaaaaa;
+            --border-color: #3f3f3f;
+            /* Subtle border */
+            --accent-color: #3ea6ff;
+            /* YouTube Blue */
+            --accent-hover: #65b8ff;
+            --danger-color: #ff4e45;
+            /* YouTube Red-ish */
+            --success-color: #2ba640;
+            --font-family: 'Roboto', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            margin: 0;
+            line-height: 0;
+            /* Clear line height for image */
+        }
+
+        h1 img {
+            height: 24px;
+            width: auto;
+            display: block;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 24px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-color);
+            /* YouTube often uses flat bg, or subtle surface */
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        /* Form Grid */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .form-group {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        /* Material Input Style */
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        input,
+        select {
+            width: 100%;
+            background: #121212;
+            border: 1px solid var(--border-color);
+            /* Outlined style */
+            border-radius: 4px;
+            /* Slight radius */
+            padding: 10px 12px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-family: inherit;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        /* Buttons */
+        button {
+            background: var(--accent-color);
+            color: #0d0d0d;
+            /* Dark text on blue */
+            border: none;
+            padding: 10px 24px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            border-radius: 2px;
+            /* Slight round, mostly square */
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: var(--accent-hover);
+        }
+
+        button.secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            padding: 8px 16px;
+        }
+
+        button.secondary:hover {
+            color: var(--text-primary);
+        }
+
+        /* Result Area */
+        #result {
+            margin-top: 24px;
+            padding: 16px;
+            background: #1f1f1f;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        textarea {
+            width: 100%;
+            background: #121212;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+            vertical-align: middle;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.05);
+            /* Hover effect */
+        }
+
+        /* Status Badges */
+        .status {
+            padding: 2px 0;
+            font-size: 0.85rem;
+            font-weight: 400;
+        }
+
+        .status.success {
+            color: #2ba640;
+        }
+
+        .status.pending {
+            color: #ffeb3b;
+            /* Yellow */
+        }
+
+        .status.failed {
+            color: #ff4e45;
+        }
+
+        .status.challenge {
+            color: #ff9800;
+        }
+
+        /* Action Buttons */
+        .btn-sm {
+            padding: 6px 16px;
+            font-size: 0.8rem;
+            text-transform: none;
+            margin-right: 8px;
+            background: transparent;
+            color: var(--accent-color);
+            border: 1px solid transparent;
+        }
+
+        .btn-sm:hover {
+            background: rgba(62, 166, 255, 0.1);
+        }
+
+        .btn-danger {
+            color: var(--danger-color);
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 78, 69, 0.1);
+        }
+
+        /* Helper for layout */
+        .flex-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <h1>
+                <img src="https://www.gstatic.com/youtube/img/unlimited/ytu_mobile_premium_logo_short_dark_195x40.png"
+                    alt="YouTube Premium">
+            </h1>
+            <button onclick="location.reload()">Refresh Data</button>
+        </header>
+
+        <section class="card">
+            <h2>Generate Payment Link</h2>
+
+            <!-- Quick Select Member -->
+            <div class="form-group">
+                <label>Select Member</label>
+                <select id="member-select" onchange="fillMemberDetails()">
+                    <option value="">-- Choose Member --</option>
+                    <option value="0">M. ASRAN</option>
+                    <option value="1">.</option>
+                    <option value="2">Andi Danyal Asfikar</option>
+                    <option value="3">Anggi Pratami</option>
+                    <option value="4">Muhammad Ilham Ismail</option>
+                    <option value="5">Taufik</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Member Name</label>
+                <input type="text" id="name" placeholder="E.g. Budi">
+            </div>
+            <div class="form-group">
+                <label>WhatsApp Number (Optional)</label>
+                <input type="text" id="phone" placeholder="08..." value="08">
+            </div>
+            <div class="form-group">
+                <label>Amount (Rp)</label>
+                <input type="number" id="amount" value="26500">
+            </div>
+            <div class="form-group">
+                <label>Month</label>
+                <input type="text" id="month" value="February 2026">
+            </div>
+            <button onclick="generateLink()">Generate Link</button>
+
+            <div id="result" style="margin-top: 20px; display: none;">
+                <p>Payment Link:</p>
+                <textarea id="generated-link" style="width: 100%; height: 60px;"></textarea>
+                <div class="flex-row" style="margin-top:10px;">
+                    <button class="secondary" onclick="copyLink()">Copy Link</button>
+                    <button style="background: #25D366; color: #fff;" onclick="sendWAReminder()">Send WA Bill</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bulk Actions -->
+        <section class="card">
+            <h2>Bulk Actions</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 15px; font-size: 0.9rem;">Generate links for all 6
+                members at once based on the Amount and Month above.</p>
+            <button onclick="generateBulk()">Generate for ALL Members</button>
+
+            <div id="bulk-result" style="margin-top: 20px; display: none;">
+                <h3>Generated Links</h3>
+                <table style="margin-top: 10px;">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bulk-list">
+                        <!-- Bulk items here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Transaction History</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>Month</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="transaction-list">
+                    <!-- Data populated via JS -->
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <script>
+        const API_URL = 'https://tagih-yt.azran.my.id';
+
+        // Member Data
+        const members = [
+            { name: "M. ASRAN", phone: "085255646434" },
+            { name: "Afif Ismail", phone: "082335553787" }, // Placeholder Name as per user
+            { name: "Andi Danyal Asfikar", phone: "082346196213" },
+            { name: "Anggi Pratami", phone: "082188874645" },
+            { name: "Muhammad Ilham Ismail", phone: "085705343204" },
+            { name: "Taufik Firmansyah", phone: "087810666953" }
+        ];
+
+        function fillMemberDetails() {
+            const index = document.getElementById('member-select').value;
+            if (index === "") {
+                document.getElementById('name').value = "";
+                document.getElementById('phone').value = "";
+                return;
+            }
+
+            const member = members[index];
+            if (member) {
+                document.getElementById('name').value = member.name;
+                document.getElementById('phone').value = member.phone;
+            }
+        }
+
+        function generateLink() {
+            const name = document.getElementById('name').value;
+            const amount = document.getElementById('amount').value;
+            const month = document.getElementById('month').value;
+            const phone = document.getElementById('phone').value;
+
+            if (!name || !amount) {
+                alert('Please fill name and amount');
+                return;
+            }
+
+            const baseUrl = window.location.origin;
+            let link = `${baseUrl}/?u=${encodeURIComponent(name)}&a=${amount}&m=${encodeURIComponent(month)}`;
+
+            if (phone && phone.length > 5) {
+                link += `&p=${encodeURIComponent(phone)}`;
+            }
+
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('generated-link').value = link;
+        }
+
+        function copyLink() {
+            const copyText = document.getElementById("generated-link");
+            copyText.select();
+            document.execCommand("copy");
+            alert("Link copied!");
+        }
+
+        // Send WA Bill (Manual Trigger from Admin)
+        async function sendWAReminder() {
+            const name = document.getElementById('name').value;
+            const amount = document.getElementById('amount').value;
+            const month = document.getElementById('month').value;
+            let phone = document.getElementById('phone').value;
+            const link = document.getElementById('generated-link').value;
+
+            if (!phone || phone.length < 5) {
+                alert("Please enter a valid phone number");
+                return;
+            }
+
+            // Format Phone
+            phone = phone.replace(/\D/g, '');
+            if (phone.startsWith('0')) phone = '62' + phone.slice(1);
+            if (!phone.endsWith('@s.whatsapp.net')) phone += '@s.whatsapp.net';
+
+            const message = `Halo ${name},\nTagihan YouTube Premium bulan ${month} sebesar Rp ${parseInt(amount).toLocaleString()} sudah tersedia.\n\nSilakan bayar melalui link ini:\n${link}\n\nTerima kasih!`;
+
+            try {
+                // Using the specific gateway from user
+                // Using 'no-cors' mode might be needed if front-end calls direct, but let's try direct first or use a backend proxy if CORS fails.
+                // Since user provided a GET url, we can try opening a new tab or fetch.
+                // Fetch might fail due to CORS on localhost. Opening tab is safer for admin manual action.
+
+                const gatewayUrl = `https://wa-api.pnblk.my.id/send-text?userId=patrolwaa1&to=${phone}&message=${encodeURIComponent(message)}`;
+
+                // Option 1: Open in new tab (easiest for admin)
+                window.open(gatewayUrl, '_blank');
+
+                alert('WhatsApp Sent (Check new tab)');
+            } catch (e) {
+                console.error(e);
+                alert('Failed to send WA');
+            }
+        }
+
+        // Load Transactions
+        async function loadTransactions() {
+            try {
+                const res = await fetch('/api/transactions'); // Fetch from our new endpoint
+                const data = await res.json();
+
+                const tbody = document.getElementById('transaction-list');
+                tbody.innerHTML = '';
+
+                data.reverse().forEach(t => {
+                    let action = '';
+                    if (t.status === 'PENDING') {
+                        action = `<button class="btn-sm" onclick="checkStatus('${t.order_id}')">CHECK</button>`;
+                    }
+
+                    // Delete Button
+                    const deleteBtn = `<button class="btn-sm btn-danger" onclick="deleteTransaction('${t.order_id}')">DELETE</button>`;
+
+                    const row = `<tr>
+                        <td>${new Date(t.created_at).toLocaleDateString()}</td>
+                        <td>${t.name || '-'}</td>
+                        <td style="font-family: monospace;">${t.phone || '-'}</td>
+                        <td>${t.month || '-'}</td>
+                        <td>Rp ${t.amount.toLocaleString()}</td>
+                        <td>
+                            <span class="status ${t.status.toLowerCase()}">${t.status}</span>
+                        </td>
+                        <td style="text-align: right;">
+                             ${action} ${deleteBtn}
+                        </td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                });
+            } catch (err) {
+                console.error('Failed to load transactions', err);
+            }
+        }
+
+        async function checkStatus(orderId) {
+            if (!confirm('Check status with Midtrans?')) return;
+
+            try {
+                const res = await fetch(`/api/transaction/${orderId}/check`);
+                const result = await res.json();
+
+                if (result.status) {
+                    alert(`Status Updated: ${result.data.status}`);
+                    loadTransactions(); // Reload table
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                console.error('Check failed', err);
+                alert('Failed to connect to server');
+            }
+        }
+
+        async function deleteTransaction(orderId) {
+            if (!confirm('Are you sure you want to delete this transaction from history?')) return;
+
+            try {
+                const res = await fetch(`/api/transaction/${orderId}`, { method: 'DELETE' });
+                const result = await res.json();
+
+                if (result.status) {
+                    loadTransactions(); // Reload table
+                } else {
+                    alert('Error: ' + (result.error || 'Failed to delete'));
+                }
+            } catch (err) {
+                console.error('Delete failed', err);
+                alert('Failed to connect to server');
+            }
+        }
+
+        // Generate Bulk
+        function generateBulk() {
+            const amount = document.getElementById('amount').value;
+            const month = document.getElementById('month').value;
+            const baseUrl = window.location.origin;
+
+            const tbody = document.getElementById('bulk-list');
+            tbody.innerHTML = '';
+
+            document.getElementById('bulk-result').style.display = 'block';
+
+            members.forEach(member => {
+                let link = `${baseUrl}/?u=${encodeURIComponent(member.name)}&a=${amount}&m=${encodeURIComponent(month)}`;
+                if (member.phone && member.phone.length > 5) {
+                    link += `&p=${encodeURIComponent(member.phone)}`;
+                }
+
+                const waBtn = `<button class="btn-sm" style="background: #25D366; color: #fff; margin-right: 5px;" 
+                    onclick="sendWAPrivate('${member.name.replace(/'/g, "\\'")}', '${amount}', '${month}', '${member.phone}', '${link}')">Send WA</button>`;
+
+                const copyBtn = `<button class="btn-sm secondary" onclick="const c = '${link}'; navigator.clipboard.writeText(c); alert('Copied!');">Copy</button>`;
+
+                const row = `<tr>
+                    <td>${member.name}</td>
+                    <td>${waBtn} ${copyBtn}</td>
+                </tr>`;
+
+                tbody.innerHTML += row;
+            });
+        }
+
+        function sendWAPrivate(name, amount, month, phone, link) {
+            if (!phone || phone.length < 5) return alert("No phone number");
+
+            let p = phone.replace(/\D/g, '');
+            if (p.startsWith('0')) p = '62' + p.slice(1);
+            if (!p.endsWith('@s.whatsapp.net')) p += '@s.whatsapp.net';
+
+            const msg = `Halo ${name},\nTagihan YouTube Premium bulan ${month} sebesar Rp ${parseInt(amount).toLocaleString()} sudah tersedia.\n\nSilakan bayar melalui link ini:\n${link}\n\nTerima kasih!`;
+
+            const url = `https://wa-api.pnblk.my.id/send-text?userId=patrolwaa1&to=${p}&message=${encodeURIComponent(msg)}`;
+            window.open(url, '_blank');
+        }
+
+        // Initial Load
+        loadTransactions();
+    </script>
+</body>
+
+</html>

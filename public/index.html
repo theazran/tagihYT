@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Premium Payment</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Midtrans Snap.js -->
+    <script src="https://app.midtrans.com/snap/snap.js" data-client-key="Mid-client-gtRwUdLn3jRE2R9o"></script>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <img src="https://www.gstatic.com/youtube/img/unlimited/ytu_mobile_premium_logo_short_dark_195x40.png"
+                alt="YouTube Premium" class="yt-logo">
+        </header>
+
+        <main>
+            <!-- CHECKOUT FORM SECTION -->
+            <section id="checkout-section" class="card active">
+                <div class="card-header">
+                    <h2>Complete your purchase</h2>
+                    <p class="subtitle" id="subtitle-text">Family Plan Membership</p>
+                </div>
+
+                <form id="payment-form">
+
+                    <div class="bill-details">
+                        <div class="row">
+                            <span>YouTube Premium</span>
+                            <span id="display-price">Rp -</span>
+                        </div>
+                        <div class="row total">
+                            <span>Total today</span>
+                            <span id="total-price">Rp -</span>
+                        </div>
+                    </div>
+
+                    <div class="input-group hidden">
+                        <label for="amount">Amount</label>
+                        <input type="number" id="amount" placeholder="0" required min="1">
+                    </div>
+
+                    <div class="input-group">
+                        <label for="phone">WhatsApp Number</label>
+                        <input type="tel" id="phone" placeholder="08..." required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="description">Note (Optional)</label>
+                        <input type="text" id="description" placeholder="Add a note">
+                    </div>
+
+                    <button type="submit" class="btn-primary" id="pay-btn">
+                        <span>Pay Now</span>
+                        <div class="spinner hidden"></div>
+                    </button>
+
+                    <!-- Funds Progress -->
+                    <div class="progress-section hidden" id="progress-container">
+                        <div class="progress-info">
+                            <span>Funds Collected</span>
+                            <span id="progress-text">0 / 6 Paid</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-details">
+                            <small>Rp <span id="collected-amount">0</span> / Rp 159.000</small>
+                            <small class="per-person">~Rp 26.500/person</small>
+                        </div>
+                    </div>
+
+                    <p class="terms">By continuing, you verify that you are at least 18 years old and agree to these <a
+                            href="#">Display Terms</a>.</p>
+                </form>
+            </section>
+
+            <!-- SUCCESS SECTION -->
+            <section id="success-section" class="card hidden">
+                <div class="success-icon">
+                    <svg viewBox="0 0 24 24" fill="none" class="check-svg">
+                        <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                </div>
+                <h2>You're all set!</h2>
+                <p>Welcome to YouTube Premium.</p>
+                <div class="receipt-details">
+                    <div class="row">
+                        <span>Transaction ID</span>
+                        <span id="success-order-id">-</span>
+                    </div>
+                </div>
+                <button class="btn-primary" onclick="location.reload()">Done</button>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,357 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const midtransClient = require('midtrans-client');
+const axios = require('axios');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static('public'));
+
+// Configuration
+const IS_PRODUCTION = process.env.IS_PRODUCTION === 'true';
+
+// Connect to MongoDB
+const MONGODB_URI = process.env.MONGODB_URI;
+
+// Only connect if URI is present (to avoid crashing if user hasn't set it yet)
+if (MONGODB_URI) {
+    mongoose.connect(MONGODB_URI)
+        .then(() => console.log('Connected to MongoDB'))
+        .catch(err => console.error('MongoDB connection error:', err));
+} else {
+    console.warn('MONGODB_URI is not set. Database features will not work.');
+}
+
+// Define Schema & Model
+const TransactionSchema = new mongoose.Schema({
+    order_id: { type: String, required: true, unique: true },
+    name: String,
+    phone: String, // New
+    amount: Number,
+    month: String,
+    status: { type: String, default: 'PENDING' },
+    token: String,
+    created_at: { type: Date, default: Date.now },
+    updated_at: Date
+});
+
+const Transaction = mongoose.model('Transaction', TransactionSchema);
+
+// Midtrans Clients
+let snap = new midtransClient.Snap({
+    isProduction: IS_PRODUCTION,
+    serverKey: process.env.MIDTRANS_SERVER_KEY,
+    clientKey: process.env.MIDTRANS_CLIENT_KEY
+});
+
+let coreApi = new midtransClient.CoreApi({
+    isProduction: IS_PRODUCTION,
+    serverKey: process.env.MIDTRANS_SERVER_KEY,
+    clientKey: process.env.MIDTRANS_CLIENT_KEY
+});
+
+// Helper: Send WhatsApp
+async function sendNotification(phone, message) {
+    if (!phone) return;
+    try {
+        // Format Phone: Ensure it starts with 62 and ends with @s.whatsapp.net
+        // Remove non-numeric
+        let formattedPhone = phone.replace(/\D/g, '');
+        if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
+
+        // Ensure format for gateway
+        if (!formattedPhone.endsWith('@s.whatsapp.net')) formattedPhone += '@s.whatsapp.net';
+
+        const userId = 'patrolwaa1'; // hardcoded based on request
+        const url = `https://wa-api.pnblk.my.id/send-text?userId=${userId}&to=${formattedPhone}&message=${encodeURIComponent(message)}`;
+        console.log(`Sending WA URL: ${url}`);
+
+        await axios.get(url);
+        console.log(`Axios call complete`);
+        console.log(`✅ WhatsApp sent to ${phone}`);
+    } catch (error) {
+        console.error(`❌ WA Error: ${error.message} \n URL: ${error.config?.url}`);
+    }
+}
+
+
+// --- Routes ---
+
+// 1. Create Transaction
+app.post('/create-transaction', async (req, res) => {
+    try {
+        const { amount, description, customer_details, month } = req.body;
+
+        // Generate unique Order ID
+        const orderId = `YT-${month}-${customer_details.first_name}-${Date.now()}`;
+
+        console.log(`Creating transaction for Order ID: ${orderId}, Amount: ${amount}`);
+
+        let parameter = {
+            "transaction_details": {
+                "order_id": orderId,
+                "gross_amount": parseInt(amount)
+            },
+            "credit_card": { "secure": true },
+            "customer_details": customer_details || {
+                "first_name": "Member",
+                "email": "member@example.com",
+            },
+            "item_details": [{
+                "id": `YT-PREMIUM-${month}`,
+                "price": parseInt(amount),
+                "quantity": 1,
+                "name": description || "YouTube Premium Share"
+            }]
+        };
+
+        const transaction = await snap.createTransaction(parameter);
+
+        // Save to MongoDB
+        const newTx = new Transaction({
+            order_id: orderId,
+            name: customer_details.first_name,
+            phone: customer_details.phone,
+            amount: parseInt(amount),
+            month: month,
+            status: 'PENDING',
+            token: transaction.token
+        });
+        await newTx.save();
+
+        res.json({
+            status: true,
+            data: {
+                token: transaction.token,
+                order_id: orderId,
+                redirect_url: transaction.redirect_url
+            }
+        });
+
+    } catch (error) {
+        console.error('Error creating transaction:', error.message);
+        res.status(500).json({ status: false, message: error.message });
+    }
+});
+
+// 2. Admin: Get Transactions (Sorted by newest)
+app.get('/api/transactions', async (req, res) => {
+    try {
+        const transactions = await Transaction.find().sort({ created_at: -1 });
+        res.json(transactions);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2b. Public: Get Summary (Total Collected)
+app.get('/api/summary', async (req, res) => {
+    try {
+        const { month } = req.query;
+        if (!month) return res.json({ total: 0, count: 0 });
+
+        const transactions = await Transaction.find({
+            month: month,
+            status: { $in: ['SUCCESS', 'settlement', 'capture'] }
+        });
+
+        const total = transactions.reduce((acc, curr) => acc + curr.amount, 0);
+        const count = transactions.length;
+
+        res.json({
+            total: total,
+            count: count,
+            target: 159000,
+            target_count: 6
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3. Manual Status Check
+app.get('/api/transaction/:orderId/check', async (req, res) => {
+    const { orderId } = req.params;
+    console.log(`Checking status for ${orderId}...`);
+
+    try {
+        const statusResponse = await coreApi.transaction.status(orderId);
+        let transactionStatus = statusResponse.transaction_status;
+        let fraudStatus = statusResponse.fraud_status;
+
+        console.log(`Status Response: ${transactionStatus}`);
+
+        let status = 'PENDING';
+        if (transactionStatus == 'capture') {
+            if (fraudStatus == 'challenge') {
+                status = 'CHALLENGE';
+            } else if (fraudStatus == 'accept') {
+                status = 'SUCCESS';
+            }
+        } else if (transactionStatus == 'settlement') {
+            status = 'SUCCESS';
+        } else if (transactionStatus == 'deny') {
+            status = 'FAILED';
+        } else if (transactionStatus == 'cancel' || transactionStatus == 'expire') {
+            status = 'FAILED';
+        } else if (transactionStatus == 'pending') {
+            status = 'PENDING';
+        }
+
+        // Check current status in DB to avoid double notification
+        const currentTx = await Transaction.findOne({ order_id: orderId });
+        const previousStatus = currentTx ? currentTx.status : 'PENDING';
+        console.log(`Previous DB Status: ${previousStatus}`);
+
+        // Update DB
+        const updatedTx = await Transaction.findOneAndUpdate(
+            { order_id: orderId },
+            { status: status, updated_at: new Date() },
+            { new: true } // Return updated doc
+        );
+
+        console.log(`Updated Status: ${status}`);
+        console.log(`Phone in DB: ${updatedTx ? updatedTx.phone : 'No Data'}`);
+
+        // Send WA Notification if Success AND it's a NEW success (prev status was not success)
+        if (status === 'SUCCESS' && previousStatus !== 'SUCCESS' && updatedTx && updatedTx.phone) {
+            console.log(`Attempting to send WA to ${updatedTx.phone}...`);
+            const msg = `*Pembayaran Diterima!*\n\nHalo ${updatedTx.name},\nPembayaran YouTube Premium Anda sebesar Rp ${updatedTx.amount.toLocaleString()} untuk bulan ${updatedTx.month} telah berhasil.\n\nTerima kasih! 🎉`;
+            await sendNotification(updatedTx.phone, msg);
+        } else {
+            console.log(`WA Logic Skipped: Pre-Fail=${previousStatus !== 'SUCCESS'}, HasPhone=${!!(updatedTx && updatedTx.phone)}`);
+        }
+
+        res.json({ status: true, data: { status: status, original: statusResponse, db: updatedTx } });
+
+    } catch (e) {
+        console.error("Error checking status:", e.message);
+        res.status(500).json({ status: false, message: e.message });
+    }
+});
+
+// 3b. Delete Transaction (Admin)
+app.delete('/api/transaction/:orderId', async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        await Transaction.findOneAndDelete({ order_id: orderId });
+        res.json({ status: true, message: 'Transaction deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 4. Webhook
+app.post('/notification', async (req, res) => {
+    try {
+        const statusResponse = await coreApi.transaction.notification(req.body);
+        const orderId = statusResponse.order_id;
+        const transactionStatus = statusResponse.transaction_status;
+        const fraudStatus = statusResponse.fraud_status;
+
+        console.log(`Webhook received: ${orderId} | Status: ${transactionStatus}`);
+
+        let status = 'PENDING';
+        if (transactionStatus == 'capture') {
+            if (fraudStatus == 'challenge') {
+                status = 'CHALLENGE';
+            } else if (fraudStatus == 'accept') {
+                status = 'SUCCESS';
+            }
+        } else if (transactionStatus == 'settlement') {
+            status = 'SUCCESS';
+        } else if (transactionStatus == 'deny') {
+            status = 'FAILED';
+        } else if (transactionStatus == 'cancel' || transactionStatus == 'expire') {
+            status = 'FAILED';
+        }
+
+        // Update DB
+        const updatedTx = await Transaction.findOneAndUpdate(
+            { order_id: orderId },
+            { status: status, updated_at: new Date() },
+            { new: true }
+        );
+
+        // Send WA Notification if Success and not already sent (simple check)
+        if (status === 'SUCCESS' && updatedTx && updatedTx.phone) {
+            const msg = `*Pembayaran Diterima!*\n\nHalo ${updatedTx.name},\nPembayaran YouTube Premium Anda sebesar Rp ${updatedTx.amount.toLocaleString()} untuk bulan ${updatedTx.month} telah berhasil.\n\nTerima kasih! 🎉`;
+            await sendNotification(updatedTx.phone, msg);
+        }
+
+        res.status(200).send('OK');
+    } catch (err) {
+        console.error('Webhook Error:', err.message);
+        res.status(500).send('Error');
+    }
+});
+
+// --- Auto Check Background Job (Local Only) ---
+async function checkPendingTransactions() {
+    console.log('🔄 Auto-Checking Pending Transactions...');
+    try {
+        const pendingTxs = await Transaction.find({ status: 'PENDING' });
+        if (pendingTxs.length === 0) {
+            console.log('No pending transactions.');
+            return;
+        }
+
+        for (const tx of pendingTxs) {
+            try {
+                const statusResponse = await coreApi.transaction.status(tx.order_id);
+                let transactionStatus = statusResponse.transaction_status;
+                let fraudStatus = statusResponse.fraud_status;
+                let newStatus = 'PENDING';
+
+                if (transactionStatus == 'capture') {
+                    if (fraudStatus == 'challenge') newStatus = 'CHALLENGE';
+                    else if (fraudStatus == 'accept') newStatus = 'SUCCESS';
+                } else if (transactionStatus == 'settlement') {
+                    newStatus = 'SUCCESS';
+                } else if (transactionStatus == 'deny' || transactionStatus == 'cancel' || transactionStatus == 'expire') {
+                    newStatus = 'FAILED';
+                }
+
+                if (newStatus !== 'PENDING' && newStatus !== tx.status) {
+                    tx.status = newStatus;
+                    tx.updated_at = new Date();
+                    await tx.save();
+
+                    console.log(`✅ Status Updated: ${tx.order_id} -> ${newStatus}`);
+
+                    if (newStatus === 'SUCCESS' && tx.phone) {
+                        const msg = `*Pembayaran Diterima!*\n\nHalo ${tx.name},\nPembayaran YouTube Premium Anda sebesar Rp ${tx.amount.toLocaleString()} untuk bulan ${tx.month} telah berhasil.\n\nTerima kasih! 🎉`;
+                        await sendNotification(tx.phone, msg);
+                    }
+                }
+            } catch (err) {
+                console.error(`Failed to check ${tx.order_id}:`, err.message);
+            }
+        }
+    } catch (err) {
+        console.error('Auto-Check Error:', err.message);
+    }
+}
+
+
+// Vercel Serverless Export
+module.exports = app;
+
+// Local Development
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+
+        // Start Auto-Check every 1 minute
+        setInterval(checkPendingTransactions, 10 * 1000);
+        checkPendingTransactions(); // Run once immediately
+    });
+}
