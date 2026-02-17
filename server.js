@@ -19,15 +19,38 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Configuration
 const IS_PRODUCTION = process.env.IS_PRODUCTION === 'true';
 
-// Connect to MongoDB
+// Connect to MongoDB (Serverless Pattern)
 const MONGODB_URI = process.env.MONGODB_URI;
 
-// Only connect if URI is present (to avoid crashing if user hasn't set it yet)
-if (MONGODB_URI) {
-    mongoose.connect(MONGODB_URI)
-        .then(() => console.log('Connected to MongoDB'))
-        .catch(err => console.error('MongoDB connection error:', err));
-} else {
+let cached = global.mongoose;
+if (!cached) {
+    cached = global.mongoose = { conn: null, promise: null };
+}
+
+async function connectDB() {
+    if (cached.conn) return cached.conn;
+
+    if (!cached.promise) {
+        const opts = {
+            bufferCommands: false, // Disable mongoose buffering
+        };
+        cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
+            return mongoose;
+        });
+    }
+
+    try {
+        cached.conn = await cached.promise;
+    } catch (e) {
+        cached.promise = null;
+        throw e;
+    }
+
+    return cached.conn;
+}
+
+// Only connect if URI is present
+if (!MONGODB_URI) {
     console.warn('MONGODB_URI is not set. Database features will not work.');
 }
 
@@ -96,6 +119,7 @@ app.get('/admin', (req, res) => {
 // 1. Create Transaction
 app.post('/create-transaction', async (req, res) => {
     try {
+        await connectDB();
         const { amount, description, customer_details, month } = req.body;
 
         // Generate unique Order ID
@@ -153,6 +177,7 @@ app.post('/create-transaction', async (req, res) => {
 // 2. Admin: Get Transactions (Sorted by newest)
 app.get('/api/transactions', async (req, res) => {
     try {
+        await connectDB();
         const transactions = await Transaction.find().sort({ created_at: -1 });
         res.json(transactions);
     } catch (err) {
@@ -163,6 +188,7 @@ app.get('/api/transactions', async (req, res) => {
 // 2b. Public: Get Summary (Total Collected)
 app.get('/api/summary', async (req, res) => {
     try {
+        await connectDB();
         const { month } = req.query;
         if (!month) return res.json({ total: 0, count: 0 });
 
@@ -191,6 +217,7 @@ app.get('/api/transaction/:orderId/check', async (req, res) => {
     console.log(`Checking status for ${orderId}...`);
 
     try {
+        await connectDB();
         const statusResponse = await coreApi.transaction.status(orderId);
         let transactionStatus = statusResponse.transaction_status;
         let fraudStatus = statusResponse.fraud_status;
@@ -249,6 +276,7 @@ app.get('/api/transaction/:orderId/check', async (req, res) => {
 // 3b. Delete Transaction (Admin)
 app.delete('/api/transaction/:orderId', async (req, res) => {
     try {
+        await connectDB();
         const { orderId } = req.params;
         await Transaction.findOneAndDelete({ order_id: orderId });
         res.json({ status: true, message: 'Transaction deleted' });
@@ -273,6 +301,7 @@ app.post('/api/send-wa', async (req, res) => {
 // 4. Webhook
 app.post('/notification', async (req, res) => {
     try {
+        await connectDB();
         const statusResponse = await coreApi.transaction.notification(req.body);
         const orderId = statusResponse.order_id;
         const transactionStatus = statusResponse.transaction_status;
@@ -319,6 +348,7 @@ app.post('/notification', async (req, res) => {
 async function checkPendingTransactions() {
     console.log('🔄 Auto-Checking Pending Transactions...');
     try {
+        await connectDB();
         const pendingTxs = await Transaction.find({ status: 'PENDING' });
         if (pendingTxs.length === 0) {
             console.log('No pending transactions.');
