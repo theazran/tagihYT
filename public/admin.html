@@ -569,8 +569,18 @@
 
             const msg = `Halo ${name},\nTagihan YouTube Premium bulan ${month} sebesar Rp ${parseInt(amount).toLocaleString()} sudah tersedia.\n\nSilakan bayar melalui link ini:\n${link}\n\nTerima kasih!`;
 
-            const url = `https://wa-api.pnblk.my.id/send-text?userId=patrolwaa1&to=${p}&message=${encodeURIComponent(msg)}`;
-            window.open(url, '_blank');
+            // Send via internal proxy to avoid opening new tab
+            fetch(`${API_URL}/api/send-wa`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: p, message: msg })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status) alert(`✅ WA sent to ${name}`);
+                    else alert(`❌ Failed: ${data.message}`);
+                })
+                .catch(err => alert(`❌ Error: ${err.message}`));
         }
 
         // Initial Load

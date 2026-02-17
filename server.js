@@ -257,6 +257,19 @@ app.delete('/api/transaction/:orderId', async (req, res) => {
     }
 });
 
+// 3c. Send WA Manual (Proxy)
+app.post('/api/send-wa', async (req, res) => {
+    try {
+        const { phone, message } = req.body;
+        if (!phone || !message) return res.status(400).json({ status: false, message: 'Missing phone or message' });
+
+        await sendNotification(phone, message);
+        res.json({ status: true, message: 'Sent' });
+    } catch (err) {
+        res.status(500).json({ status: false, message: err.message });
+    }
+});
+
 // 4. Webhook
 app.post('/notification', async (req, res) => {
     try {
