@@ -287,6 +287,15 @@
                 </select>
             </div>
 
+            <!-- Gateway Selection -->
+            <div class="form-group">
+                <label>Payment Gateway</label>
+                <select id="gateway-select">
+                    <option value="MIDTRANS">Midtrans (Virtual Account / QRIS)</option>
+                    <option value="KLIKQRIS">KlikQRIS (Dana / QRIS Auto)</option>
+                </select>
+            </div>
+
             <div class="form-group">
                 <label>Member Name</label>
                 <input type="text" id="name" placeholder="E.g. Budi">
@@ -392,6 +401,7 @@
             const amount = document.getElementById('amount').value;
             const month = document.getElementById('month').value;
             const phone = document.getElementById('phone').value;
+            const gateway = document.getElementById('gateway-select').value;
 
             if (!name || !amount) {
                 alert('Please fill name and amount');
@@ -403,6 +413,10 @@
 
             if (phone && phone.length > 5) {
                 link += `&p=${encodeURIComponent(phone)}`;
+            }
+
+            if (gateway && gateway !== 'MIDTRANS') {
+                link += `&g=${encodeURIComponent(gateway)}`;
             }
 
             document.getElementById('result').style.display = 'block';
@@ -533,6 +547,7 @@
         function generateBulk() {
             const amount = document.getElementById('amount').value;
             const month = document.getElementById('month').value;
+            const gateway = document.getElementById('gateway-select').value;
             const baseUrl = window.location.origin;
 
             const tbody = document.getElementById('bulk-list');
@@ -544,6 +559,10 @@
                 let link = `${baseUrl}/?u=${encodeURIComponent(member.name)}&a=${amount}&m=${encodeURIComponent(month)}`;
                 if (member.phone && member.phone.length > 5) {
                     link += `&p=${encodeURIComponent(member.phone)}`;
+                }
+
+                if (gateway && gateway !== 'MIDTRANS') {
+                    link += `&g=${encodeURIComponent(gateway)}`;
                 }
 
                 const waBtn = `<button class="btn-sm" style="background: #25D366; color: #fff; margin-right: 5px;" 

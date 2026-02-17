@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const preAmount = urlParams.get('a'); // Amount
     const preMonth = urlParams.get('m'); // Month (e.g. Feb 2026)
     const prePhone = urlParams.get('p'); // Phone Number
+    const gateway = urlParams.get('g'); // 'MIDTRANS' or 'KLIKQRIS'
 
     // Pricing Display
     const displayPrice = document.getElementById('display-price');
@@ -94,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
         payBtn.disabled = true;
 
         try {
-            // 1. Get Snap Token from Backend
+            // 1. Get Transaction Details from Backend
             const response = await fetch('/create-transaction', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -102,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     amount,
                     description,
                     month: preMonth || 'General',
+                    gateway: gateway || 'MIDTRANS',
                     customer_details: {
                         first_name: preName || "Guest",
                         email: "member@example.com",
@@ -112,31 +114,73 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const result = await response.json();
 
-            if (result.status && result.data && result.data.token) {
-                const snapToken = result.data.token;
-                console.log('Snap Token:', snapToken);
+            if (result.status && result.data) {
 
-                // 2. Open Snap Payment Window
-                window.snap.pay(snapToken, {
-                    onSuccess: function (result) {
-                        console.log('Payment success', result);
-                        showSuccess(result);
-                    },
-                    onPending: function (result) {
-                        console.log('Payment pending', result);
-                        alert('Payment Pending. Please complete payment.');
-                    },
-                    onError: function (result) {
-                        console.log('Payment error', result);
-                        alert('Payment Error');
-                    },
-                    onClose: function () {
-                        console.log('Snap closed without payment');
-                        btnText.classList.remove('hidden');
-                        spinner.classList.add('hidden');
-                        payBtn.disabled = false;
-                    }
-                });
+                // --- KLIKQRIS FLOW ---
+                if (result.data.gateway === 'KLIKQRIS') {
+                    const signature = result.data.signature;
+                    console.log('KlikQRIS Signature:', signature);
+
+                    // Create hidden triggering button required by KlikQRIS script
+                    const hiddenBtn = document.createElement('button');
+                    hiddenBtn.setAttribute('data-signature', signature);
+                    hiddenBtn.style.display = 'none';
+                    hiddenBtn.id = 'klikqris-trigger';
+                    document.body.appendChild(hiddenBtn);
+
+                    // Load Script dynamically
+                    const script = document.createElement('script');
+                    script.src = "https://klikqris.com/js/payment-snap.js?t=" + new Date().getTime();
+
+                    script.onload = () => {
+                        console.log('KlikQRIS Script Loaded. Triggering modal...');
+                        // Simulate click to open modal
+                        hiddenBtn.click();
+
+                        // Reset Loading State
+                        setTimeout(() => {
+                            btnText.classList.remove('hidden');
+                            spinner.classList.add('hidden');
+                            payBtn.disabled = false;
+                        }, 2000);
+                    };
+
+                    document.body.appendChild(script);
+                    return; // Stop here, let modal take over
+                }
+
+                // --- MIDTRANS FLOW ---
+                if (result.data.token) {
+                    const snapToken = result.data.token;
+                    console.log('Snap Token:', snapToken);
+
+                    // Open Snap Payment Window
+                    window.snap.pay(snapToken, {
+                        onSuccess: function (result) {
+                            console.log('Payment success', result);
+                            showSuccess(result);
+                        },
+                        onPending: function (result) {
+                            console.log('Payment pending', result);
+                            alert('Payment Pending. Please complete payment.');
+                        },
+                        onError: function (result) {
+                            console.log('Payment error', result);
+                            alert('Payment Error');
+                        },
+                        onClose: function () {
+                            console.log('Snap closed without payment');
+                            btnText.classList.remove('hidden');
+                            spinner.classList.add('hidden');
+                            payBtn.disabled = false;
+                        }
+                    });
+                } else {
+                    alert('Error: No token received');
+                    btnText.classList.remove('hidden');
+                    spinner.classList.add('hidden');
+                    payBtn.disabled = false;
+                }
 
             } else {
                 alert('Error creating transaction: ' + (result.message || 'Unknown error'));

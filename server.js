@@ -62,7 +62,10 @@ const TransactionSchema = new mongoose.Schema({
     amount: Number,
     month: String,
     status: { type: String, default: 'PENDING' },
-    token: String,
+    token: String, // Midtrans Snap Token
+    gateway: { type: String, default: 'MIDTRANS' }, // 'MIDTRANS' or 'KLIKQRIS'
+    signature: String, // KlikQRIS Signature
+    qris_url: String, // KlikQRIS Image URL
     created_at: { type: Date, default: Date.now },
     updated_at: Date
 });
@@ -120,13 +123,70 @@ app.get('/admin', (req, res) => {
 app.post('/create-transaction', async (req, res) => {
     try {
         await connectDB();
-        const { amount, description, customer_details, month } = req.body;
+        const { amount, description, customer_details, month, gateway } = req.body;
 
         // Generate unique Order ID (Shortened for Midtrans limit)
         const orderId = `YT-${Date.now()}`;
 
-        console.log(`Creating transaction for Order ID: ${orderId}, Amount: ${amount}`);
+        console.log(`Creating transaction for Order ID: ${orderId}, Amount: ${amount}, Gateway: ${gateway || 'MIDTRANS'}`);
 
+        // --- KLIKQRIS LOGIC ---
+        if (gateway === 'KLIKQRIS') {
+            const formattedAmount = parseInt(amount);
+            const merchantId = process.env.KLIKQRIS_MERCHANT_ID;
+            const apiKey = process.env.KLIKQRIS_API_KEY;
+
+            try {
+                const response = await axios.post('https://klikqris.com/api/qris/create', {
+                    order_id: orderId,
+                    amount: formattedAmount,
+                    id_merchant: merchantId,
+                    keterangan: description || `Payment for ${month}`
+                }, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': apiKey,
+                        'id_merchant': merchantId
+                    }
+                });
+
+                const data = response.data;
+                if (!data.status) throw new Error(data.message || 'KlikQRIS Failed');
+
+                const result = data.data;
+
+                // Save to MongoDB
+                const newTx = new Transaction({
+                    order_id: orderId,
+                    name: customer_details.first_name,
+                    phone: customer_details.phone,
+                    amount: result.total_amount, // Use total (with unique code)
+                    month: month,
+                    status: 'PENDING',
+                    gateway: 'KLIKQRIS',
+                    signature: result.signature,
+                    qris_url: result.qris_url
+                });
+                await newTx.save();
+
+                return res.json({
+                    status: true,
+                    data: {
+                        gateway: 'KLIKQRIS',
+                        order_id: orderId,
+                        signature: result.signature,
+                        qris_url: result.qris_url,
+                        total_amount: result.total_amount
+                    }
+                });
+
+            } catch (kqError) {
+                console.error('KlikQRIS Error:', kqError.message);
+                return res.status(500).json({ status: false, message: 'KlikQRIS Error: ' + kqError.message });
+            }
+        }
+
+        // --- MIDTRANS LOGIC (Default) ---
         let parameter = {
             "transaction_details": {
                 "order_id": orderId,
@@ -155,13 +215,15 @@ app.post('/create-transaction', async (req, res) => {
             amount: parseInt(amount),
             month: month,
             status: 'PENDING',
-            token: transaction.token
+            token: transaction.token,
+            gateway: 'MIDTRANS'
         });
         await newTx.save();
 
         res.json({
             status: true,
             data: {
+                gateway: 'MIDTRANS',
                 token: transaction.token,
                 order_id: orderId,
                 redirect_url: transaction.redirect_url
