@@ -80,7 +80,28 @@
                 </form>
             </section>
 
-            <!-- SUCCESS SECTION -->
+            <!-- QRIS DISPLAY SECTION (Fallback for KlikQRIS) -->
+            <section id="qris-section" class="card hidden">
+                <div class="card-header">
+                    <h2>Scan QRIS</h2>
+                    <p class="subtitle">Pay with any e-wallet</p>
+                </div>
+
+                <div style="text-align: center; margin: 24px 0;">
+                    <img id="qris-image" src="" alt="Loading QRIS..."
+                        style="max-width: 250px; width: 100%; border-radius: 8px; border: 1px solid #333;">
+                    <p style="margin-top: 12px; font-weight: bold; font-size: 1.2rem;">Rp <span
+                            id="qris-amount">-</span></p>
+                </div>
+
+                <p style="text-align: center; color: #aaa; font-size: 0.9rem; margin-bottom: 24px;">
+                    After payment, click the button below.
+                </p>
+
+                <button class="btn-primary" onclick="location.reload()">
+                    <span>I Have Paid</span>
+                </button>
+            </section>
             <section id="success-section" class="card hidden">
                 <div class="success-icon">
                     <svg viewBox="0 0 24 24" fill="none" class="check-svg">

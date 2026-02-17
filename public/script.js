@@ -119,9 +119,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 // --- KLIKQRIS FLOW ---
                 if (result.data.gateway === 'KLIKQRIS') {
                     const signature = result.data.signature;
+                    const qrisUrl = result.data.qris_url;
+                    const totalAmount = result.data.total_amount;
+
                     console.log('KlikQRIS Signature:', signature);
 
-                    // Create hidden triggering button required by KlikQRIS script
+                    // SHOW FALLBACK UI IMMEDIATELY (So user sees QRIS even if modal fails)
+                    const qrisSection = document.getElementById('qris-section');
+                    const qrisImage = document.getElementById('qris-image');
+                    const qrisAmountDisplay = document.getElementById('qris-amount');
+
+                    if (qrisUrl && qrisSection && qrisImage) {
+                        qrisImage.src = qrisUrl;
+                        if (qrisAmountDisplay) {
+                            qrisAmountDisplay.textContent = new Intl.NumberFormat('id-ID').format(totalAmount);
+                        }
+
+                        checkoutSection.classList.add('hidden');
+                        qrisSection.classList.remove('hidden');
+
+                        // Reset Loading State
+                        btnText.classList.remove('hidden');
+                        spinner.classList.add('hidden');
+                        payBtn.disabled = false;
+                    }
+
+                    // TRY TO OPEN MODAL (SNAP)
                     const hiddenBtn = document.createElement('button');
                     hiddenBtn.setAttribute('data-signature', signature);
                     hiddenBtn.style.display = 'none';
@@ -134,20 +157,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     script.onload = () => {
                         console.log('KlikQRIS Script Loaded. Triggering modal...');
-                        // Simulate click to open modal
                         hiddenBtn.click();
-
-                        // Reset Loading State
-                        setTimeout(() => {
-                            btnText.classList.remove('hidden');
-                            spinner.classList.add('hidden');
-                            payBtn.disabled = false;
-                        }, 2000);
                     };
 
                     document.body.appendChild(script);
-                    return; // Stop here, let modal take over
+                    return;
                 }
+
 
                 // --- MIDTRANS FLOW ---
                 if (result.data.token) {
@@ -201,13 +217,35 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function showSuccess(result) {
-        checkoutSection.classList.add('hidden');
-        successSection.classList.remove('hidden');
-        successOrderId.textContent = result.order_id || 'N/A';
-        // Hide loading just in case
-        btnText.classList.remove('hidden');
-        spinner.classList.add('hidden');
-        payBtn.disabled = false;
+        console.log('Showing Success Section', result);
+
+        // Force hide Checkout Section
+        const checkoutSec = document.getElementById('checkout-section');
+        if (checkoutSec) {
+            checkoutSec.classList.add('hidden');
+            checkoutSec.style.setProperty('display', 'none', 'important');
+        }
+
+        // Hide Form specifically too
+        const form = document.getElementById('payment-form');
+        if (form) form.style.display = 'none';
+
+        // Force show Success Section
+        const successSec = document.getElementById('success-section');
+        if (successSec) {
+            successSec.classList.remove('hidden');
+            successSec.style.display = 'block';
+        }
+
+        const successOid = document.getElementById('success-order-id');
+        if (successOid) {
+            successOid.textContent = result.order_id || 'N/A';
+        }
+
+        // Hide loading state
+        if (btnText) btnText.classList.remove('hidden');
+        if (spinner) spinner.classList.add('hidden');
+        if (payBtn) payBtn.disabled = false;
     }
 
 });

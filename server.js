@@ -281,54 +281,87 @@ app.get('/api/transaction/:orderId/check', async (req, res) => {
 
     try {
         await connectDB();
-        const statusResponse = await coreApi.transaction.status(orderId);
-        let transactionStatus = statusResponse.transaction_status;
-        let fraudStatus = statusResponse.fraud_status;
 
-        console.log(`Status Response: ${transactionStatus}`);
+        // 1. Get Transaction from DB
+        let currentTx = await Transaction.findOne({ order_id: orderId });
+        if (!currentTx) {
+            return res.status(404).json({ status: false, message: 'Transaction not found in DB' });
+        }
 
-        let status = 'PENDING';
-        if (transactionStatus == 'capture') {
-            if (fraudStatus == 'challenge') {
-                status = 'CHALLENGE';
-            } else if (fraudStatus == 'accept') {
-                status = 'SUCCESS';
+        let newStatus = currentTx.status;
+        let rawResponse = {};
+
+        // 2. Gateway Specific Logic
+        if (currentTx.gateway === 'KLIKQRIS') {
+            const merchantId = process.env.KLIKQRIS_MERCHANT_ID;
+            const apiKey = process.env.KLIKQRIS_API_KEY;
+
+            try {
+                // Correct Endpoint: GET /qris/status/{order_id}
+                const response = await axios.get(`https://klikqris.com/api/qris/status/${orderId}`, {
+                    headers: {
+                        'x-api-key': apiKey,
+                        'id_merchant': merchantId
+                    }
+                });
+
+                rawResponse = response.data;
+                console.log('KlikQRIS Status Response:', JSON.stringify(rawResponse));
+
+                // Logic: Check data.status
+                if (rawResponse.status && rawResponse.data) {
+                    const kStatus = rawResponse.data.status;
+
+                    // Map KlikQRIS status to system status
+                    if (kStatus === 'PAID' || kStatus === 'SUCCEEDED' || kStatus === 'SUCCESS') {
+                        newStatus = 'SUCCESS';
+                    } else if (kStatus === 'EXPIRED' || kStatus === 'FAILED') {
+                        newStatus = 'FAILED';
+                    } else if (kStatus === 'PENDING') {
+                        newStatus = 'PENDING';
+                    }
+                }
+            } catch (err) {
+                console.error('KlikQRIS Status Check Error:', err.message);
+                if (err.response) console.error('Response:', err.response.data);
             }
-        } else if (transactionStatus == 'settlement') {
-            status = 'SUCCESS';
-        } else if (transactionStatus == 'deny') {
-            status = 'FAILED';
-        } else if (transactionStatus == 'cancel' || transactionStatus == 'expire') {
-            status = 'FAILED';
-        } else if (transactionStatus == 'pending') {
-            status = 'PENDING';
-        }
 
-        // Check current status in DB to avoid double notification
-        const currentTx = await Transaction.findOne({ order_id: orderId });
-        const previousStatus = currentTx ? currentTx.status : 'PENDING';
-        console.log(`Previous DB Status: ${previousStatus}`);
-
-        // Update DB
-        const updatedTx = await Transaction.findOneAndUpdate(
-            { order_id: orderId },
-            { status: status, updated_at: new Date() },
-            { new: true } // Return updated doc
-        );
-
-        console.log(`Updated Status: ${status}`);
-        console.log(`Phone in DB: ${updatedTx ? updatedTx.phone : 'No Data'}`);
-
-        // Send WA Notification if Success AND it's a NEW success (prev status was not success)
-        if (status === 'SUCCESS' && previousStatus !== 'SUCCESS' && updatedTx && updatedTx.phone) {
-            console.log(`Attempting to send WA to ${updatedTx.phone}...`);
-            const msg = `*Pembayaran Diterima!*\n\nHalo ${updatedTx.name},\nPembayaran YouTube Premium Anda sebesar Rp ${updatedTx.amount.toLocaleString()} untuk bulan ${updatedTx.month} telah berhasil.\n\nTerima kasih! 🎉`;
-            await sendNotification(updatedTx.phone, msg);
         } else {
-            console.log(`WA Logic Skipped: Pre-Fail=${previousStatus !== 'SUCCESS'}, HasPhone=${!!(updatedTx && updatedTx.phone)}`);
+            // MIDTRANS
+            try {
+                const statusResponse = await coreApi.transaction.status(orderId);
+                rawResponse = statusResponse;
+                let transactionStatus = statusResponse.transaction_status;
+                let fraudStatus = statusResponse.fraud_status;
+
+                if (transactionStatus == 'capture') {
+                    if (fraudStatus == 'challenge') newStatus = 'CHALLENGE';
+                    else if (fraudStatus == 'accept') newStatus = 'SUCCESS';
+                } else if (transactionStatus == 'settlement') {
+                    newStatus = 'SUCCESS';
+                } else if (transactionStatus == 'deny' || transactionStatus == 'cancel' || transactionStatus == 'expire') {
+                    newStatus = 'FAILED';
+                }
+            } catch (err) {
+                console.error('Midtrans Status Check Error:', err.message);
+            }
         }
 
-        res.json({ status: true, data: { status: status, original: statusResponse, db: updatedTx } });
+        // 3. Update DB if Status Changed
+        if (newStatus !== currentTx.status) {
+            currentTx.status = newStatus;
+            currentTx.updated_at = new Date();
+            await currentTx.save();
+            console.log(`Updated Status: ${currentTx.status}`);
+
+            // Send WA
+            if (newStatus === 'SUCCESS' && currentTx.phone) {
+                const msg = `*Pembayaran Diterima!*\n\nHalo ${currentTx.name},\nPembayaran YouTube Premium Anda sebesar Rp ${currentTx.amount.toLocaleString()} untuk bulan ${currentTx.month} telah berhasil.\n\nTerima kasih! 🎉`;
+                await sendNotification(currentTx.phone, msg);
+            }
+        }
+
+        res.json({ status: true, data: { status: newStatus, original: rawResponse, db: currentTx } });
 
     } catch (e) {
         console.error("Error checking status:", e.message);
