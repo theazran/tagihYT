@@ -402,7 +402,7 @@ if (require.main === module) {
         console.log(`Server running on http://localhost:${PORT}`);
 
         // Start Auto-Check every 1 minute
-        setInterval(checkPendingTransactions, 10 * 1000);
-        checkPendingTransactions(); // Run once immediately
+        // setInterval(checkPendingTransactions, 10 * 1000);
+        // checkPendingTransactions(); // Run once immediately
     });
 }
