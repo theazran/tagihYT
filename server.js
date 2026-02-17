@@ -133,7 +133,7 @@ app.post('/create-transaction', async (req, res) => {
         // --- KLIKQRIS LOGIC ---
         if (gateway === 'KLIKQRIS') {
             const formattedAmount = parseInt(amount);
-            const merchantId = process.env.KLIKQRIS_MERCHANT_ID;
+            const merchantId = parseInt(process.env.KLIKQRIS_MERCHANT_ID);
             const apiKey = process.env.KLIKQRIS_API_KEY;
 
             try {
@@ -181,8 +181,9 @@ app.post('/create-transaction', async (req, res) => {
                 });
 
             } catch (kqError) {
-                console.error('KlikQRIS Error:', kqError.message);
-                return res.status(500).json({ status: false, message: 'KlikQRIS Error: ' + kqError.message });
+                const errorMsg = kqError.response ? JSON.stringify(kqError.response.data) : kqError.message;
+                console.error('KlikQRIS API Error:', errorMsg);
+                return res.status(500).json({ status: false, message: 'KlikQRIS Error: ' + errorMsg });
             }
         }
 
