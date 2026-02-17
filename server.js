@@ -395,42 +395,76 @@ app.post('/api/send-wa', async (req, res) => {
 });
 
 // 4. Webhook
+// 4. Webhook
 app.post('/notification', async (req, res) => {
     try {
         await connectDB();
-        const statusResponse = await coreApi.transaction.notification(req.body);
-        const orderId = statusResponse.order_id;
-        const transactionStatus = statusResponse.transaction_status;
-        const fraudStatus = statusResponse.fraud_status;
 
-        console.log(`Webhook received: ${orderId} | Status: ${transactionStatus}`);
+        const notification = req.body;
+        let orderId, newStatus;
 
-        let status = 'PENDING';
-        if (transactionStatus == 'capture') {
-            if (fraudStatus == 'challenge') {
-                status = 'CHALLENGE';
-            } else if (fraudStatus == 'accept') {
-                status = 'SUCCESS';
+        console.log('Webhook Body:', JSON.stringify(notification));
+
+        // --- KLIKQRIS LOGIC ---
+        // KlikQRIS sent 'status' (e.g. PAID) but no 'transaction_status'
+        if (notification.status && !notification.transaction_status) {
+            orderId = notification.order_id;
+            const kStatus = notification.status;
+
+            console.log(`KlikQRIS Webhook: ${orderId} | Status: ${kStatus}`);
+
+            if (kStatus === 'PAID' || kStatus === 'SUCCEEDED') newStatus = 'SUCCESS';
+            else if (kStatus === 'EXPIRED' || kStatus === 'FAILED') newStatus = 'FAILED';
+            else newStatus = 'PENDING';
+
+        }
+        // --- MIDTRANS LOGIC ---
+        else {
+            const statusResponse = await coreApi.transaction.notification(notification);
+            orderId = statusResponse.order_id;
+            const transactionStatus = statusResponse.transaction_status;
+            const fraudStatus = statusResponse.fraud_status;
+
+            console.log(`Midtrans Webhook: ${orderId} | Status: ${transactionStatus}`);
+
+            newStatus = 'PENDING';
+            if (transactionStatus == 'capture') {
+                if (fraudStatus == 'challenge') newStatus = 'CHALLENGE';
+                else if (fraudStatus == 'accept') newStatus = 'SUCCESS';
+            } else if (transactionStatus == 'settlement') {
+                newStatus = 'SUCCESS';
+            } else if (transactionStatus == 'deny' || transactionStatus == 'cancel' || transactionStatus == 'expire') {
+                newStatus = 'FAILED';
             }
-        } else if (transactionStatus == 'settlement') {
-            status = 'SUCCESS';
-        } else if (transactionStatus == 'deny') {
-            status = 'FAILED';
-        } else if (transactionStatus == 'cancel' || transactionStatus == 'expire') {
-            status = 'FAILED';
         }
 
-        // Update DB
-        const updatedTx = await Transaction.findOneAndUpdate(
-            { order_id: orderId },
-            { status: status, updated_at: new Date() },
-            { new: true }
-        );
+        // --- COMMON DB UPDATE & NOTIFICATION ---
+        const currentTx = await Transaction.findOne({ order_id: orderId });
+        if (!currentTx) {
+            console.warn(`Transaction not found for webhook: ${orderId}`);
+            return res.status(404).json({ message: 'Transaction not found' });
+        }
 
-        // Send WA Notification if Success and not already sent (simple check)
-        if (status === 'SUCCESS' && updatedTx && updatedTx.phone) {
-            const msg = `*Pembayaran Diterima!*\n\nHalo ${updatedTx.name},\nPembayaran YouTube Premium Anda sebesar Rp ${updatedTx.amount.toLocaleString()} untuk bulan ${updatedTx.month} telah berhasil.\n\nTerima kasih! 🎉`;
-            await sendNotification(updatedTx.phone, msg);
+        // Only update if status changed from Non-Success to Success (or other changes)
+        if (currentTx.status !== newStatus) {
+            // Prevent reverting SUCCESS to PENDING (if gateway retries)
+            if (currentTx.status === 'SUCCESS' && newStatus !== 'SUCCESS') {
+                console.log('Ignored: Cannot revert SUCCESS status.');
+                return res.status(200).send('OK');
+            }
+
+            currentTx.status = newStatus;
+            currentTx.updated_at = new Date();
+            await currentTx.save();
+            console.log(`✅ Status Updated: ${newStatus}`);
+
+            // Send WA Notification if Success and Phone exists
+            if (newStatus === 'SUCCESS' && currentTx.phone) {
+                const msg = `*Pembayaran Diterima!*\n\nHalo ${currentTx.name},\nPembayaran YouTube Premium Anda sebesar Rp ${currentTx.amount.toLocaleString()} untuk bulan ${currentTx.month} telah berhasil.\n\nTerima kasih! 🎉`;
+                await sendNotification(currentTx.phone, msg);
+            }
+        } else {
+            console.log('Status unchanged.');
         }
 
         res.status(200).send('OK');
