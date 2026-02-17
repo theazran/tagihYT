@@ -122,8 +122,8 @@ app.post('/create-transaction', async (req, res) => {
         await connectDB();
         const { amount, description, customer_details, month } = req.body;
 
-        // Generate unique Order ID
-        const orderId = `YT-${month}-${customer_details.first_name}-${Date.now()}`;
+        // Generate unique Order ID (Shortened for Midtrans limit)
+        const orderId = `YT-${Date.now()}`;
 
         console.log(`Creating transaction for Order ID: ${orderId}, Amount: ${amount}`);
 
