@@ -475,7 +475,7 @@ Periode : ${currentTx.month}
 
 Terima kasih telah melakukan pembayaran YouTube Premium.
 `;
-                await sendNotification(currentTx.phone, msg);
+                await sendNotification('120363393161030633@g.us', msg);
             }
         } else {
             console.log('Status unchanged.');
@@ -531,7 +531,7 @@ Periode : ${currentTx.month}
 
 Terima kasih telah melakukan pembayaran YouTube Premium.
 `;
-                        await sendNotification(tx.phone, msg);
+                        await sendNotification('120363393161030633@g.us', msg);
                     }
                 }
             } catch (err) {
