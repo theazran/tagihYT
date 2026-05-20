@@ -467,7 +467,14 @@ app.post('/notification', async (req, res) => {
 
             // Send WA Notification if Success and Phone exists
             if (newStatus === 'SUCCESS' && currentTx.phone) {
-                const msg = `*Pembayaran Diterima!*\n\nHalo ${currentTx.name},\nPembayaran YouTube Premium Anda sebesar Rp ${currentTx.amount.toLocaleString()} untuk bulan ${currentTx.month} telah berhasil.\n\nTerima kasih! 🎉`;
+                const msg = `*PEMBAYARAN DITERIMA*
+
+Nama : ${currentTx.name}
+Nominal : Rp ${currentTx.amount.toLocaleString()}
+Periode : ${currentTx.month}
+
+Terima kasih telah melakukan pembayaran YouTube Premium.
+`;
                 await sendNotification(currentTx.phone, msg);
             }
         } else {
@@ -516,7 +523,14 @@ async function checkPendingTransactions() {
                     console.log(`✅ Status Updated: ${tx.order_id} -> ${newStatus}`);
 
                     if (newStatus === 'SUCCESS' && tx.phone) {
-                        const msg = `*Pembayaran Diterima!*\n\nHalo ${tx.name},\nPembayaran YouTube Premium Anda sebesar Rp ${tx.amount.toLocaleString()} untuk bulan ${tx.month} telah berhasil.\n\nTerima kasih! 🎉`;
+                        const msg = `*PEMBAYARAN DITERIMA*
+
+Nama : ${currentTx.name}
+Nominal : Rp ${currentTx.amount.toLocaleString()}
+Periode : ${currentTx.month}
+
+Terima kasih telah melakukan pembayaran YouTube Premium.
+`;
                         await sendNotification(tx.phone, msg);
                     }
                 }
