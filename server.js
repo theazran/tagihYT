@@ -356,8 +356,15 @@ app.get('/api/transaction/:orderId/check', async (req, res) => {
 
             // Send WA
             if (newStatus === 'SUCCESS' && currentTx.phone) {
-                const msg = `*Pembayaran Diterima!*\n\nHalo ${currentTx.name},\nPembayaran YouTube Premium Anda sebesar Rp ${currentTx.amount.toLocaleString()} untuk bulan ${currentTx.month} telah berhasil.\n\nTerima kasih! 🎉`;
-                await sendNotification(currentTx.phone, msg);
+                const msg = `*PEMBAYARAN DITERIMA*
+
+Nama : ${currentTx.name}
+Nominal : Rp ${currentTx.amount.toLocaleString()}
+Periode : ${currentTx.month}
+
+Terima kasih telah melakukan pembayaran YouTube Premium.
+`;
+                await sendNotification('120363393161030633@g.us', msg);
             }
         }
 
