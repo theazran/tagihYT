@@ -88,27 +88,40 @@ let coreApi = new midtransClient.CoreApi({
 // Helper: Send WhatsApp
 async function sendNotification(phone, message) {
     if (!phone) return;
+
     try {
-        // Format Phone: Ensure it starts with 62 and ends with @s.whatsapp.net
-        // Remove non-numeric
-        let formattedPhone = phone.replace(/\D/g, '');
-        if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.slice(1);
+        let formattedPhone = phone.trim();
 
-        // Ensure format for gateway
-        if (!formattedPhone.endsWith('@s.whatsapp.net')) formattedPhone += '@s.whatsapp.net';
+        // Jika group ID langsung pakai
+        if (formattedPhone.endsWith('@g.us')) {
+            // biarkan apa adanya
+        } else {
+            // Format nomor biasa
+            formattedPhone = formattedPhone.replace(/\D/g, '');
 
-        const userId = 'patrolwaa1'; // hardcoded based on request
+            if (formattedPhone.startsWith('0')) {
+                formattedPhone = '62' + formattedPhone.slice(1);
+            }
+
+            if (!formattedPhone.endsWith('@s.whatsapp.net')) {
+                formattedPhone += '@s.whatsapp.net';
+            }
+        }
+
+        const userId = 'patrolwaa1';
+
         const url = `https://wa-api.pnblk.my.id/send-text?userId=${userId}&to=${formattedPhone}&message=${encodeURIComponent(message)}`;
+
         console.log(`Sending WA URL: ${url}`);
 
         await axios.get(url);
-        console.log(`Axios call complete`);
-        console.log(`✅ WhatsApp sent to ${phone}`);
+
+        console.log(`✅ WhatsApp sent to ${formattedPhone}`);
+
     } catch (error) {
-        console.error(`❌ WA Error: ${error.message} \n URL: ${error.config?.url}`);
+        console.error(`❌ WA Error: ${error.message}\nURL: ${error.config?.url}`);
     }
 }
-
 
 // --- Routes ---
 app.get('/', (req, res) => {
